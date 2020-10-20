@@ -44,6 +44,7 @@ extension Application {
 
         internal var pool: EventLoopGroupConnectionPool<APNSConnectionSource> {
             if let existing = self.application.storage[PoolKey.self] {
+                logger?.info("return existing connection pool for apns")
                 return existing
             } else {
                 let lock = self.application.locks.lock(for: PoolKey.self)
@@ -54,7 +55,7 @@ extension Application {
                 }
                 let new = EventLoopGroupConnectionPool(
                     source: APNSConnectionSource(configuration: configuration),
-                    maxConnectionsPerEventLoop: 1,
+                    maxConnectionsPerEventLoop: 10,
                     requestTimeout: customTimeout,
                     logger: self.application.logger,
                     on: self.application.eventLoopGroup
@@ -62,7 +63,16 @@ extension Application {
                 self.application.storage.set(PoolKey.self, to: new) {
                     $0.shutdown()
                 }
+                logger?.info("create and return new pool")
                 return new
+            }
+        }
+        
+        public func restartPool() {
+            if let existing = self.application.storage[PoolKey.self] {
+                logger?.info("Restart pool when error encounter")
+                existing.shutdown()
+                self.application.storage[PoolKey.self] = nil
             }
         }
 
